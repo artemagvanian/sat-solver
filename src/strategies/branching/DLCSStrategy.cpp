@@ -1,5 +1,6 @@
 #include "strategies/branching/DLCSStrategy.h"
 
+// Implementing Dynamic Largest Combined Sum heuristic
 std::pair<int, LiteralValue> DLCSStrategy::choose(const Formula &initial) const {
     int positive_occurrences = 0;
     int negative_occurrences = 0;
