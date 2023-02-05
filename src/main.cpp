@@ -2,6 +2,7 @@
 #include <cassert>
 #include <chrono>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <vector>
 #include <optional>
@@ -269,9 +270,9 @@ int main(int argc, char **argv) {
             solution.append(" ");
         }
         solution.pop_back();
-        std::cout << solution << "\"}";
+        std::cout << solution << "\"}" << std::endl;
     } else {
-        std::cout << "}";
+        std::cout << "}" << std::endl;
     }
 
     return 0;
