@@ -50,3 +50,6 @@ _deps
 
 # sat-solver
 sat-solver
+
+# macOS
+.DS_Store
