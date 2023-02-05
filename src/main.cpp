@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -7,6 +9,10 @@
 #include <sstream>
 #include <unordered_set>
 #include <unordered_map>
+
+enum Assignment {
+    U, T, F
+};
 
 std::vector<std::string> split(const std::string &str, char delim) {
     std::vector<std::string> items;
@@ -21,7 +27,7 @@ std::vector<std::string> split(const std::string &str, char delim) {
 class Formula {
 private:
     std::vector<std::unordered_set<int>> clauses;
-    std::unordered_map<int, std::optional<bool>> assignments;
+    std::unordered_map<int, Assignment> assignments;
     int variables_count = 0;
     int clauses_count = 0;
 
@@ -54,11 +60,11 @@ public:
         }
     }
 
-    std::unordered_map<int, std::optional<bool>> get_assignments() {
+    std::unordered_map<int, Assignment> get_assignments() {
         return assignments;
     }
 
-    std::optional<int> find_unit_clause() {
+    int find_unit_clause() {
         for (const auto &clause: clauses) {
             if (clause.size() == 1) {
                 return *clause.begin();
@@ -72,9 +78,9 @@ public:
         assert(literal != 0);
 
         if (literal < 0) {
-            assignments[-literal] = false;
+            assignments[-literal] = F;
         } else {
-            assignments[literal] = true;
+            assignments[literal] = T;
         }
 
         // Remove all clauses including literal
@@ -91,32 +97,35 @@ public:
         }
     }
 
-    std::optional<int> find_pure_literal() {
-        for (const auto &[variable, assignment]: assignments) {
+    int find_pure_literal() {
+        for (const auto &pair: assignments) {
+            auto &variable = pair.first;
+            auto &assignment = pair.second;
+
             bool pure = true;
-            if (!assignment.has_value()) {
-                std::optional<int> variable_instance = {};
+            if (assignment == U) {
+                int variable_instance = 0;
                 for (const auto &clause: clauses) {
-                    if (!variable_instance.has_value()) {
+                    if (variable_instance == 0) {
                         if (clause.find(variable) != clause.end()) {
                             variable_instance = variable;
                         } else if (clause.find(-variable) != clause.end()) {
                             variable_instance = -variable;
                         }
                     } else {
-                        if (clause.find(variable_instance.value()) == clause.end()) {
+                        if (clause.find(variable_instance) == clause.end()) {
                             pure = false;
                             break;
                         }
                     }
                 }
 
-                if (variable_instance.has_value() && pure) {
+                if (variable_instance != 0 && pure) {
                     return variable_instance;
                 }
             }
         }
-        return {};
+        return 0;
     }
 
     // We are assuming that the literal appears only in this form
@@ -124,9 +133,9 @@ public:
         assert(literal != 0);
 
         if (literal < 0) {
-            assignments[-literal] = false;
+            assignments[-literal] = F;
         } else {
-            assignments[literal] = true;
+            assignments[literal] = T;
         }
 
         // Remove all clauses including literal
@@ -148,10 +157,13 @@ public:
         }
 
         std::cout << std::endl << "ASSIGNMENTS: ";
-        for (const auto &[variable, assignment]: assignments) {
+        for (const auto &pair: assignments) {
+            auto &variable = pair.first;
+            auto &assignment = pair.second;
+
             std::cout << variable << " = ";
-            if (assignment.has_value()) {
-                std::cout << (assignment.value() == 1 ? "T" : "F") << "; ";
+            if (assignment != U) {
+                std::cout << (assignment == T ? "T" : "F") << "; ";
             } else {
                 std::cout << "?; ";
             }
@@ -159,14 +171,14 @@ public:
     }
 
     bool solve() {
-        std::optional<int> unit_clause;
-        while ((unit_clause = this->find_unit_clause()).has_value()) {
-            this->propagate_unit_clause(unit_clause.value());
+        int unit_clause;
+        while ((unit_clause = this->find_unit_clause()) != 0) {
+            this->propagate_unit_clause(unit_clause);
         }
 
-        std::optional<int> pure_literal;
-        while ((pure_literal = this->find_pure_literal()).has_value()) {
-            this->eliminate_pure_literal(pure_literal.value());
+        int pure_literal;
+        while ((pure_literal = this->find_pure_literal()) != 0) {
+            this->eliminate_pure_literal(pure_literal);
         }
 
         if (clauses.empty()) {
@@ -178,10 +190,13 @@ public:
             return false;
         }
 
-        for (auto &[variable, assignment]: assignments) {
-            if (!assignment.has_value()) {
+        for (auto &pair: assignments) {
+            auto &variable = pair.first;
+            auto &assignment = pair.second;
+
+            if (assignment == U) {
                 Formula branch_true = *this;
-                branch_true.assignments[variable] = true;
+                branch_true.assignments[variable] = T;
                 branch_true.propagate_unit_clause(variable);
 
                 if (branch_true.solve()) {
@@ -189,7 +204,7 @@ public:
                     return true;
                 } else {
                     Formula branch_false = *this;
-                    branch_false.assignments[variable] = false;
+                    branch_false.assignments[variable] = F;
                     branch_false.propagate_unit_clause(-variable);
 
                     if (branch_false.solve()) {
@@ -240,11 +255,14 @@ int main(int argc, char **argv) {
     if (sat) {
         std::cout << ", " << R"("Solution": ")";
         std::string solution;
-        for (auto &[variable, assignment]: formula.get_assignments()) {
+        for (auto &pair: formula.get_assignments()) {
+            auto &variable = pair.first;
+            auto &assignment = pair.second;
+
             solution.append(std::to_string(variable));
             solution.append(" ");
-            if (assignment.has_value()) {
-                solution.append(assignment.value() ? "true" : "false");
+            if (assignment != U) {
+                solution.append(assignment == T ? "true" : "false");
             } else {
                 solution.append("true");
             }
