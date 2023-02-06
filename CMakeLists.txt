@@ -8,6 +8,7 @@ add_executable(sat-solver
         src/utils/types.h
         src/Formula.h src/Formula.cpp
         src/strategies/branching/BranchingStrategy.h
-        src/strategies/branching/DLCSStrategy.h src/strategies/branching/DLCSStrategy.cpp)
+        src/strategies/branching/DLCSStrategy.h src/strategies/branching/DLCSStrategy.cpp
+        src/strategies/branching/BohmsStrategy.h src/strategies/branching/BohmsStrategy.cpp)
 
 target_include_directories(sat-solver PUBLIC src/)
