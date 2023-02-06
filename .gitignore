@@ -50,6 +50,7 @@ _deps
 
 # sat-solver
 sat-solver
+logs
 
 # macOS
 .DS_Store
