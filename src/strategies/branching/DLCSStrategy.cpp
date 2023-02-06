@@ -1,23 +1,23 @@
 #include "strategies/branching/DLCSStrategy.h"
 
 // Implementing Dynamic Largest Combined Sum heuristic
-std::pair<int, LiteralValue> DLCSStrategy::choose(const Formula &initial) const {
-    int positive_occurrences = 0;
-    int negative_occurrences = 0;
-    int target_variable = 0;
+std::pair<Variable, LiteralValue> DLCSStrategy::choose(const Formula &initial) const {
+    size_t positive_occurrences = 0;
+    size_t negative_occurrences = 0;
+    Variable target_variable = 0;
 
     for (auto &assignment: initial.assignments) {
-        const int &variable = assignment.first;
+        const Variable &variable = assignment.first;
         const LiteralValue &value = assignment.second;
 
         if (value == U) {
-            int current_positive_occurrences = 0;
-            int current_negative_occurrences = 0;
+            size_t current_positive_occurrences = 0;
+            size_t current_negative_occurrences = 0;
 
             for (auto &clause: initial.clauses) {
-                if (clause.find(variable) != clause.end()) {
+                if (clause.find(static_cast<Literal>(variable)) != clause.end()) {
                     current_positive_occurrences++;
-                } else if (clause.find(-variable) != clause.end()) {
+                } else if (clause.find(-static_cast<Literal>(variable)) != clause.end()) {
                     current_negative_occurrences++;
                 }
             }

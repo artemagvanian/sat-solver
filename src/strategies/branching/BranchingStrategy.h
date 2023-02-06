@@ -4,5 +4,5 @@
 
 class BranchingStrategy {
 public:
-    virtual std::pair<int, LiteralValue> choose(const Formula &initial) const = 0;
+    virtual std::pair<Variable, LiteralValue> choose(const Formula &initial) const = 0;
 };

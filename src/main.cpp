@@ -20,8 +20,8 @@ int main(int argc, char **argv) {
             std::vector<std::string> params = split(line, ' ');
 
             assert(params.size() == 4);
-            formula.set_variables_count(std::stoi(params[2]));
-            formula.set_clauses_count(std::stoi(params[3]));
+            formula.set_variables_count(std::stol(params[2]));
+            formula.set_clauses_count(std::stol(params[3]));
 
             while (std::getline(file, line)) {
                 formula.add_clause(line);
@@ -38,16 +38,25 @@ int main(int argc, char **argv) {
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
 
-    std::cout << R"({"Instance": ")" << argv[1] << "\", " <<
+    std::string path = argv[1];
+
+    std::cout << R"({"Instance": ")" << path.substr(path.find_last_of("/\\") + 1) << "\", " <<
               R"("Time": ")" << std::fixed << std::setprecision(2) << (float) duration.count() / 1000 << "\", " <<
               R"("Result": ")" << (sat ? "SAT" : "UNSAT") << "\"";
 
     if (sat) {
         std::cout << ", " << R"("Solution": ")";
+        std::vector<std::pair<int, LiteralValue>> assignments_vec(formula.assignments.begin(),
+                                                                  formula.assignments.end());
+        std::sort(assignments_vec.begin(), assignments_vec.end(),
+                  [](const auto &a, const auto &b) {
+                      return a.first < b.first;
+                  });
+
         std::string solution;
-        for (auto &pair: formula.assignments) {
-            auto &variable = pair.first;
-            auto &assignment = pair.second;
+        for (auto &pair: assignments_vec) {
+            const auto &variable = pair.first;
+            const auto &assignment = pair.second;
 
             solution.append(std::to_string(variable));
             solution.append(" ");
