@@ -5,7 +5,9 @@
 #include <sstream>
 
 #include "Formula.h"
+#include "Verifier.h"
 #include "strategies/branching/DLCSStrategy.h"
+#include "strategies/branching/BohmsStrategy.h"
 
 int main(int argc, char **argv) {
     std::ifstream file(argv[1]);
@@ -32,6 +34,8 @@ int main(int argc, char **argv) {
 
     const BranchingStrategy &strategy = DLCSStrategy();
 
+    std::vector<std::unordered_set<Literal>> clauses = formula.clauses;
+
     auto start = std::chrono::high_resolution_clock::now();
     bool sat = formula.solve(strategy);
     auto stop = std::chrono::high_resolution_clock::now();
@@ -39,6 +43,10 @@ int main(int argc, char **argv) {
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
 
     std::string path = argv[1];
+
+    std::cout << std::boolalpha;
+
+    std::cout << "VERIFIED: " << Verifier::verify(clauses, formula.assignments) << std::endl;
 
     std::cout << R"({"Instance": ")" << path.substr(path.find_last_of("/\\") + 1) << "\", " <<
               R"("Time": ")" << std::fixed << std::setprecision(2) << (float) duration.count() / 1000 << "\", " <<
