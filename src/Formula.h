@@ -11,12 +11,29 @@ class BranchingStrategy;
 
 std::vector<std::string> split(const std::string &str, char delim);
 
+typedef long ID;
+
+struct OperationResult {
+    Literal set_literal;
+    std::unordered_map<ID, std::unordered_set<Literal>> removed_clauses;
+    std::unordered_set<ID> reduced_clauses;
+};
+
+struct SolutionResult {
+    bool result;
+    std::vector<OperationResult> ops;
+};
+
 class Formula {
 public:
-    std::vector<std::unordered_set<Literal>> clauses;
+    std::unordered_map<ID, std::unordered_set<Literal>> clauses;
     std::unordered_map<Variable, LiteralValue> assignments;
+    // Variable -> { positive_occurrences, negative_occurrences }
+    std::unordered_map<Variable, std::pair<std::unordered_set<ID>, std::unordered_set<ID>>> occurrences;
+
     size_t variables_count = 0;
     size_t clauses_count = 0;
+    ID next_assigned_id = 1;
 
     Formula() = default;
 
@@ -30,15 +47,25 @@ public:
     Literal find_unit_clause();
 
     // We are assuming that the literal appears in some unit clause
-    void propagate_unit_clause(Literal literal);
+    OperationResult propagate_unit_clause(Literal literal);
 
     // Returns 0 if there are no pure literals in the formula
     Literal find_pure_literal();
 
     // We are assuming that the literal appears only in this form
-    void eliminate_pure_literal(Literal literal);
+    OperationResult eliminate_pure_literal(Literal literal);
+
+    void undo_operation(OperationResult &op);
+
+    void undo_solution(SolutionResult &sol);
+
+    void restore_clauses(std::unordered_map<ID, std::unordered_set<Literal>> &removed_clauses);
+
+    void restore_literal(const std::unordered_set<ID> &reduced_clauses, Literal literal);
+
+    void restore_literal_value(const Literal &literal);
 
     void print();
 
-    bool solve(const BranchingStrategy &branching_strategy);
+    SolutionResult solve(const BranchingStrategy &branching_strategy);
 };

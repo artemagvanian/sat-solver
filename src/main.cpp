@@ -9,6 +9,8 @@
 #include "strategies/branching/DLCSStrategy.h"
 #include "strategies/branching/BohmsStrategy.h"
 
+#define VERIFY false
+
 int main(int argc, char **argv) {
     std::ifstream file(argv[1]);
 
@@ -34,10 +36,14 @@ int main(int argc, char **argv) {
 
     const BranchingStrategy &strategy = DLCSStrategy();
 
-    std::vector<std::unordered_set<Literal>> clauses = formula.clauses;
+    std::unordered_map<ID, std::unordered_set<Literal>> clauses;
+
+    if (VERIFY) {
+        clauses = formula.clauses;
+    }
 
     auto start = std::chrono::high_resolution_clock::now();
-    bool sat = formula.solve(strategy);
+    auto sat = formula.solve(strategy);
     auto stop = std::chrono::high_resolution_clock::now();
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
@@ -46,13 +52,15 @@ int main(int argc, char **argv) {
 
     std::cout << std::boolalpha;
 
-    std::cout << "VERIFIED: " << Verifier::verify(clauses, formula.assignments) << std::endl;
+    if (VERIFY) {
+        std::cout << "VERIFIED: " << Verifier::verify(clauses, formula.assignments) << std::endl;
+    }
 
     std::cout << R"({"Instance": ")" << path.substr(path.find_last_of("/\\") + 1) << "\", " <<
               R"("Time": ")" << std::fixed << std::setprecision(2) << (float) duration.count() / 1000 << "\", " <<
-              R"("Result": ")" << (sat ? "SAT" : "UNSAT") << "\"";
+              R"("Result": ")" << (sat.result ? "SAT" : "UNSAT") << "\"";
 
-    if (sat) {
+    if (sat.result) {
         std::cout << ", " << R"("Solution": ")";
         std::vector<std::pair<int, LiteralValue>> assignments_vec(formula.assignments.begin(),
                                                                   formula.assignments.end());

@@ -8,5 +8,5 @@ enum ComparisonResult {
     Equal, Greater, Less
 };
 
-typedef unsigned long Variable;
+typedef long Variable;
 typedef long Literal;
