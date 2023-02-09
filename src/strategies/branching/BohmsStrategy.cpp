@@ -58,12 +58,12 @@ std::pair<Variable, LiteralValue> BohmsStrategy::choose(const Formula &initial) 
     std::unordered_map<Variable, std::map<ClauseSize, Occurrences>> h_values;
 
     for (const auto &clause: initial.clauses) {
-        for (const auto &literal: clause.second) {
+        for (const auto &literal: clause->literals) {
             assert(literal != 0);
             if (literal > 0) {
-                h_values[literal][clause.second.size()].first++;
+                h_values[literal][clause->literals.size()].first++;
             } else if (literal < 0) {
-                h_values[-literal][clause.second.size()].second++;
+                h_values[-literal][clause->literals.size()].second++;
             }
         }
     }

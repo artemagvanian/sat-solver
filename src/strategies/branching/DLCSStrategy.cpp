@@ -6,13 +6,21 @@ std::pair<Variable, LiteralValue> DLCSStrategy::choose(const Formula &formula) c
     size_t negative_occurrences = 0;
     Variable target_variable = 0;
 
-    for (auto &assignment: formula.assignments) {
-        const Variable &variable = assignment.first;
-        const LiteralValue &value = assignment.second;
+    for (const auto &variable_data_pair: formula.variables) {
+        const Variable &variable = variable_data_pair.first;
+        const LiteralValue &value = variable_data_pair.second.value;
 
         if (value == U) {
-            size_t current_positive_occurrences = formula.occurrences.at(variable).first.size();
-            size_t current_negative_occurrences = formula.occurrences.at(variable).second.size();
+            size_t current_positive_occurrences =
+                    std::count_if(
+                            variable_data_pair.second.positive_occurrences.cbegin(),
+                            variable_data_pair.second.positive_occurrences.cend(),
+                            [](const auto &clause) { return clause->active; });
+
+            size_t current_negative_occurrences = std::count_if(
+                    variable_data_pair.second.negative_occurrences.cbegin(),
+                    variable_data_pair.second.negative_occurrences.cend(),
+                    [](const auto &clause) { return clause->active; });
 
             if (current_positive_occurrences + current_negative_occurrences >
                 positive_occurrences + negative_occurrences) {

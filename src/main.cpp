@@ -8,7 +8,7 @@
 #include "Verifier.h"
 #include "strategies/branching/JeroslowWangStrategy.h"
 
-#define VERIFY false
+#define VERIFY true
 
 int main(int argc, char **argv) {
     std::ifstream file(argv[1]);
@@ -35,12 +35,6 @@ int main(int argc, char **argv) {
 
     const BranchingStrategy &strategy = JeroslowWangStrategy();
 
-    std::unordered_map<ID, std::unordered_set<Literal>> clauses;
-
-    if (VERIFY) {
-        clauses = formula.clauses;
-    }
-
     auto start = std::chrono::high_resolution_clock::now();
     auto sat = formula.solve(strategy);
     auto stop = std::chrono::high_resolution_clock::now();
@@ -52,17 +46,17 @@ int main(int argc, char **argv) {
     std::cout << std::boolalpha;
 
     if (VERIFY) {
-        std::cout << "VERIFIED: " << Verifier::verify(clauses, formula.assignments) << std::endl;
+        std::cout << "VERIFIED: " << Verifier::verify(formula.clauses, formula.variables) << std::endl;
     }
 
     std::cout << R"({"Instance": ")" << path.substr(path.find_last_of("/\\") + 1) << "\", " <<
               R"("Time": ")" << std::fixed << std::setprecision(2) << (float) duration.count() / 1000 << "\", " <<
-              R"("Result": ")" << (sat.result ? "SAT" : "UNSAT") << "\"";
+              R"("Result": ")" << (sat.first ? "SAT" : "UNSAT") << "\"";
 
-    if (sat.result) {
+    if (sat.first) {
         std::cout << ", " << R"("Solution": ")";
-        std::vector<std::pair<Variable, LiteralValue>> assignments_vec(formula.assignments.begin(),
-                                                                       formula.assignments.end());
+        std::vector<std::pair<Variable, VariableData>> assignments_vec(formula.variables.begin(),
+                                                                       formula.variables.end());
         std::sort(assignments_vec.begin(), assignments_vec.end(),
                   [](const auto &a, const auto &b) {
                       return a.first < b.first;
@@ -71,7 +65,7 @@ int main(int argc, char **argv) {
         std::string solution;
         for (auto &pair: assignments_vec) {
             const auto &variable = pair.first;
-            const auto &assignment = pair.second;
+            const auto &assignment = pair.second.value;
 
             solution.append(std::to_string(variable));
             solution.append(" ");

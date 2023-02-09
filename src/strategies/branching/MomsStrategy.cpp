@@ -7,18 +7,20 @@ std::pair<Variable, LiteralValue> MomsStrategy::choose(const Formula &formula) c
     std::unordered_set<Variable> variables;
 
     for (const auto &clause: formula.clauses) {
-        if (clause.second.size() < minimum_size) {
-            oms.clear();
-            variables.clear();
-            minimum_size = clause.second.size();
-            for (const auto &literal: clause.second) {
-                oms[literal]++;
-                variables.insert(std::abs(literal));
-            }
-        } else if (clause.second.size() == minimum_size) {
-            for (const auto &literal: clause.second) {
-                oms[literal]++;
-                variables.insert(std::abs(literal));
+        if (clause->active) {
+            if (clause->active_literals < minimum_size) {
+                oms.clear();
+                variables.clear();
+                minimum_size = clause->active_literals;
+                for (const auto &literal: clause->literals) {
+                    oms[literal]++;
+                    variables.insert(std::abs(literal));
+                }
+            } else if (clause->active_literals == minimum_size) {
+                for (const auto &literal: clause->literals) {
+                    oms[literal]++;
+                    variables.insert(std::abs(literal));
+                }
             }
         }
     }
@@ -27,11 +29,13 @@ std::pair<Variable, LiteralValue> MomsStrategy::choose(const Formula &formula) c
     Variable moms_variable = 0;
 
     for (const auto &variable: variables) {
-        size_t f = (oms[variable] + oms[-variable]) * static_cast<long>(std::pow(2, k))
-                   + oms[variable] * oms[-variable];
-        if (f > moms) {
-            moms = f;
-            moms_variable = variable;
+        if (formula.variables.at(variable).value == U) {
+            size_t f = (oms[variable] + oms[-variable]) * static_cast<long>(std::pow(2, k))
+                       + oms[variable] * oms[-variable];
+            if (f > moms) {
+                moms = f;
+                moms_variable = variable;
+            }
         }
     }
 
