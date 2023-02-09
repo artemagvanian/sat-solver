@@ -54,16 +54,16 @@ bool h_values_comp(long alpha, long beta,
 }
 
 // Implementing Bohm's heuristic
-std::pair<Variable, LiteralValue> BohmsStrategy::choose(const Formula &initial) const {
-    std::unordered_map<Variable, std::map<ClauseSize, Occurrences>> h_values;
+std::pair<Variable *, LiteralValue> BohmsStrategy::choose(const Formula &initial) const {
+    std::unordered_map<ID, std::map<ClauseSize, Occurrences>> h_values;
 
     for (const auto &clause: initial.clauses) {
         for (const auto &literal: clause->literals) {
-            assert(literal != 0);
-            if (literal > 0) {
-                h_values[literal][clause->literals.size()].first++;
-            } else if (literal < 0) {
-                h_values[-literal][clause->literals.size()].second++;
+            assert(literal.variable != nullptr);
+            if (literal.sign > 0) {
+                h_values[literal.variable->id][clause->literals.size()].first++;
+            } else if (literal.sign < 0) {
+                h_values[literal.variable->id][clause->literals.size()].second++;
             }
         }
     }
@@ -80,5 +80,10 @@ std::pair<Variable, LiteralValue> BohmsStrategy::choose(const Formula &initial) 
         sum_positive += pair.second.second;
     }
 
-    return {max.first, sum_positive > sum_negative ? T : F};
+    auto variable = std::find_if(initial.variables.begin(), initial.variables.end(),
+                                 [&](const auto &variable) {
+                                     return variable->id == max.first;
+                                 });
+
+    return {*variable, sum_positive > sum_negative ? T : F};
 }

@@ -30,7 +30,7 @@ void Formula::set_clauses_count(size_t n) {
 void Formula::add_clause(const std::string &clause_str) {
     std::vector<std::string> clause_vec = split(clause_str, ' ');
 
-    auto *clause = new Clause{true, 0, {}, 0};
+    auto *clause = new Clause{true, nullptr, 0, {}};
 
     for (const std::string &str_literal: clause_vec) {
         if (str_literal == "0") {
@@ -38,18 +38,38 @@ void Formula::add_clause(const std::string &clause_str) {
             clauses.push_back(clause);
             break;
         } else {
-            Literal literal = stol(str_literal);
-            assert(literal != 0);
+            long new_literal = stol(str_literal);
+            assert(new_literal != 0);
 
-            if (clause->literals.find(literal) == clause->literals.end()) {
-                if (literal > 0) {
-                    variables[std::abs(literal)].positive_occurrences.push_back(clause);
+            if (std::find_if(clause->literals.cbegin(), clause->literals.cend(),
+                             [&](const auto &literal) {
+                                 return literal.variable->id == std::abs(new_literal);
+                             }) == clause->literals.end()) {
+
+                auto it = std::find_if(variables.begin(), variables.end(),
+                                       [&](const auto &variable) {
+                                           return variable->id == std::abs(new_literal);
+                                       });
+
+                if (it == variables.end()) {
+                    auto *variable = new Variable{std::abs(new_literal), U, {}, {}};
+                    if (new_literal > 0) {
+                        variable->positive_occurrences.push_back(clause);
+                        clause->literals.push_back({1, variable});
+                    } else {
+                        variable->negative_occurrences.push_back(clause);
+                        clause->literals.push_back({-1, variable});
+                    }
+                    variables.push_back(variable);
                 } else {
-                    variables[std::abs(literal)].negative_occurrences.push_back(clause);
+                    if (new_literal > 0) {
+                        (*it)->positive_occurrences.push_back(clause);
+                        clause->literals.push_back({1, (*it)});
+                    } else {
+                        (*it)->negative_occurrences.push_back(clause);
+                        clause->literals.push_back({-1, (*it)});
+                    }
                 }
-                variables[std::abs(literal)].value = U;
-
-                clause->literals.insert(literal);
                 clause->active_literals++;
             }
         }
@@ -57,42 +77,42 @@ void Formula::add_clause(const std::string &clause_str) {
 }
 
 // Returns 0 if there are no unit clauses in the formula
-Literal Formula::find_unit_clause() {
+SignedVariable Formula::find_unit_clause() {
     for (const auto &clause: clauses) {
         if (clause->active && clause->active_literals == 1) {
             for (const auto &literal: clause->literals) {
-                if (variables[std::abs(literal)].value == U) {
+                if (literal.variable->value == U) {
                     return literal;
                 }
             }
             assert(false);
         }
     }
-    return 0;
+    return {0, nullptr};
 }
 
 // We are assuming that the literal appears in some unit clause
-void Formula::propagate(Literal literal) {
-    assert(literal != 0);
+void Formula::propagate(SignedVariable literal) {
+    assert(literal.variable != nullptr);
 
-    if (literal > 0) {
-        variables[literal].value = T;
+    if (literal.sign > 0) {
+        literal.variable->value = T;
     } else {
-        variables[-literal].value = F;
+        literal.variable->value = F;
     }
 
     const auto &deactivate_clauses =
-            literal > 0 ? variables[std::abs(literal)].positive_occurrences :
-            variables[std::abs(literal)].negative_occurrences;
+            literal.sign > 0 ? literal.variable->positive_occurrences :
+            literal.variable->negative_occurrences;
 
     const auto &decrement_clauses =
-            literal > 0 ? variables[std::abs(literal)].negative_occurrences :
-            variables[std::abs(literal)].positive_occurrences;
+            literal.sign > 0 ? literal.variable->negative_occurrences :
+            literal.variable->positive_occurrences;
 
     for (const auto &deactivate_clause: deactivate_clauses) {
         if (deactivate_clause->active) {
             deactivate_clause->active = false;
-            deactivate_clause->deactivated_by = std::abs(literal);
+            deactivate_clause->deactivated_by = literal.variable;
         }
     }
     for (const auto &decrement_clause: decrement_clauses) {
@@ -103,64 +123,39 @@ void Formula::propagate(Literal literal) {
 }
 
 // Returns 0 if there are no pure literals in the formula
-Literal Formula::find_pure_literal() {
-    for (const auto &variable_data_pair: variables) {
-        if (variable_data_pair.second.value == U) {
-            bool no_positives = std::all_of(variable_data_pair.second.positive_occurrences.cbegin(),
-                                            variable_data_pair.second.positive_occurrences.cend(),
+SignedVariable Formula::find_pure_literal() {
+    for (const auto &variable: variables) {
+        if (variable->value == U) {
+            bool no_positives = std::all_of(variable->positive_occurrences.cbegin(),
+                                            variable->positive_occurrences.cend(),
                                             [](const auto &clause) { return !(clause->active); });
 
-            bool no_negatives = std::all_of(variable_data_pair.second.negative_occurrences.cbegin(),
-                                            variable_data_pair.second.negative_occurrences.cend(),
+            bool no_negatives = std::all_of(variable->negative_occurrences.cbegin(),
+                                            variable->negative_occurrences.cend(),
                                             [](const auto &clause) { return !(clause->active); });
             if (!no_positives && no_negatives) {
-                return variable_data_pair.first;
+                return {1, variable};
             } else if (!no_negatives && no_positives) {
-                return -variable_data_pair.first;
+                return {-1, variable};
             }
         }
     }
-    return 0;
+    return {0, nullptr};
 }
 
-void Formula::print() {
-    std::cout << "FORMULA WITH " << variables_count << " VARS AND " << clauses_count << " CLAUSES" << std::endl;
-    std::cout << "CLAUSES: ";
-    for (const auto &clause: clauses) {
-        std::cout << "(";
-        for (const Literal &literal: clause->literals) {
-            std::cout << literal << ",";
-        }
-        std::cout << ") ";
-    }
+std::pair<bool, std::vector<Variable *>> Formula::solve(const BranchingStrategy &branching_strategy) {
+    std::vector<Variable *> eliminated_variables;
 
-    std::cout << std::endl << "ASSIGNMENTS: ";
-    for (const auto &variable_data_pair: variables) {
-        const Variable &variable = variable_data_pair.first;
-        const LiteralValue &value = variable_data_pair.second.value;
-
-        std::cout << variable << " = ";
-        if (value != U) {
-            std::cout << (value == T ? "T" : "F") << "; ";
-        } else {
-            std::cout << "?; ";
-        }
-    }
-}
-
-std::pair<bool, std::vector<Variable>> Formula::solve(const BranchingStrategy &branching_strategy) {
-    std::vector<Variable> eliminated_variables;
-
-    Literal unit_clause;
-    while ((unit_clause = find_unit_clause()) != 0) {
+    SignedVariable unit_clause{};
+    while ((unit_clause = find_unit_clause()).variable != nullptr) {
         propagate(unit_clause);
-        eliminated_variables.push_back(std::abs(unit_clause));
+        eliminated_variables.push_back(unit_clause.variable);
     }
 
-    Literal pure_literal;
-    while ((pure_literal = find_pure_literal()) != 0) {
+    SignedVariable pure_literal{};
+    while ((pure_literal = find_pure_literal()).variable != nullptr) {
         propagate(pure_literal);
-        eliminated_variables.push_back(std::abs(pure_literal));
+        eliminated_variables.push_back(pure_literal.variable);
     }
 
     if (std::all_of(clauses.cbegin(),
@@ -174,60 +169,58 @@ std::pair<bool, std::vector<Variable>> Formula::solve(const BranchingStrategy &b
         return {false, eliminated_variables};
     }
 
-    const std::pair<Variable, LiteralValue> assignment = branching_strategy.choose(*this);
-    const Variable &variable = assignment.first;
-    const LiteralValue &value = assignment.second;
+    const std::pair<Variable *, LiteralValue> assignment = branching_strategy.choose(*this);
 
-    Literal literal = value == T ? variable : -variable;
+    SignedVariable literal{0, assignment.first};
+    literal.sign = assignment.second == T ? 1 : -1;
     propagate(literal);
 
-    std::pair<bool, std::vector<Variable>> branch_left = solve(branching_strategy);
+    std::pair<bool, std::vector<Variable *>> branch_left = solve(branching_strategy);
 
     if (branch_left.first) {
-        eliminated_variables.push_back(std::abs(literal));
+        eliminated_variables.push_back(literal.variable);
         eliminated_variables.insert(eliminated_variables.end(),
                                     std::make_move_iterator(branch_left.second.begin()),
                                     std::make_move_iterator(branch_left.second.end()));
         return {true, eliminated_variables};
     } else {
         depropagate(branch_left.second);
-        depropagate({std::abs(literal)});
+        depropagate({literal.variable});
 
-        propagate(-literal);
+        literal.sign *= -1;
+        propagate(literal);
 
-        std::pair<bool, std::vector<Variable>> branch_right = solve(branching_strategy);
+        std::pair<bool, std::vector<Variable *>> branch_right = solve(branching_strategy);
 
         if (branch_right.first) {
-            eliminated_variables.push_back(std::abs(literal));
+            eliminated_variables.push_back(literal.variable);
             eliminated_variables.insert(eliminated_variables.end(),
                                         std::make_move_iterator(branch_right.second.begin()),
                                         std::make_move_iterator(branch_right.second.end()));
             return {true, eliminated_variables};
         } else {
             depropagate(branch_right.second);
-            depropagate({std::abs(literal)});
+            depropagate({literal.variable});
 
             return {false, eliminated_variables};
         }
     }
 }
 
-void Formula::depropagate(const std::vector<Variable> &eliminated_variables) {
+void Formula::depropagate(const std::vector<Variable *> &eliminated_variables) {
     for (auto it = eliminated_variables.crbegin(); it != eliminated_variables.crend(); it++) {
-        LiteralValue value = variables[*it].value;
-
         const auto &activate_clauses =
-                value == T ? variables[*it].positive_occurrences :
-                variables[*it].negative_occurrences;
+                (*it)->value == T ? (*it)->positive_occurrences :
+                (*it)->negative_occurrences;
 
         const auto &increment_clauses =
-                value == T ? variables[*it].negative_occurrences :
-                variables[*it].positive_occurrences;
+                (*it)->value == T ? (*it)->negative_occurrences :
+                (*it)->positive_occurrences;
 
         for (const auto &activate_clause: activate_clauses) {
             if (activate_clause->deactivated_by == *it) {
                 activate_clause->active = true;
-                activate_clause->deactivated_by = 0;
+                activate_clause->deactivated_by = nullptr;
             }
         }
         for (const auto &increment_clause: increment_clauses) {
@@ -236,6 +229,15 @@ void Formula::depropagate(const std::vector<Variable> &eliminated_variables) {
             }
         }
 
-        variables[*it].value = U;
+        (*it)->value = U;
+    }
+}
+
+Formula::~Formula() {
+    for (auto &variable: variables) {
+        delete variable;
+    }
+    for (auto &clause: clauses) {
+        delete clause;
     }
 }

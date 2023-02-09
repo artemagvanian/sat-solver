@@ -45,8 +45,8 @@ int main(int argc, char **argv) {
 
     std::cout << std::boolalpha;
 
-    if (VERIFY) {
-        std::cout << "VERIFIED: " << Verifier::verify(formula.clauses, formula.variables) << std::endl;
+    if (VERIFY && sat.first) {
+        assert(Verifier::verify(formula.clauses, formula.variables));
     }
 
     std::cout << R"({"Instance": ")" << path.substr(path.find_last_of("/\\") + 1) << "\", " <<
@@ -55,22 +55,20 @@ int main(int argc, char **argv) {
 
     if (sat.first) {
         std::cout << ", " << R"("Solution": ")";
-        std::vector<std::pair<Variable, VariableData>> assignments_vec(formula.variables.begin(),
-                                                                       formula.variables.end());
-        std::sort(assignments_vec.begin(), assignments_vec.end(),
+        std::sort(formula.variables.begin(), formula.variables.end(),
                   [](const auto &a, const auto &b) {
-                      return a.first < b.first;
+                      return a->id < b->id;
                   });
 
         std::string solution;
-        for (auto &pair: assignments_vec) {
-            const auto &variable = pair.first;
-            const auto &assignment = pair.second.value;
+        for (auto &variable: formula.variables) {
+            const auto &id = variable->id;
+            const auto &value = variable->value;
 
-            solution.append(std::to_string(variable));
+            solution.append(std::to_string(id));
             solution.append(" ");
-            if (assignment != U) {
-                solution.append(assignment == T ? "true" : "false");
+            if (value != U) {
+                solution.append(value == T ? "true" : "false");
             } else {
                 solution.append("true");
             }

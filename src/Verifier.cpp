@@ -1,12 +1,12 @@
 #include "Verifier.h"
 
-bool Verifier::verify(const std::vector<Clause*> &clauses,
-                      const std::unordered_map<Variable, VariableData> &variables) {
+bool Verifier::verify(const std::vector<Clause *> &clauses,
+                      const std::vector<Variable *> &variables) {
     for (const auto &clause: clauses) {
         bool clause_satisfied = false;
         for (const auto &literal: clause->literals) {
-            if ((literal > 0 && variables.at(literal).value != F) ||
-                (literal < 0 && variables.at(-literal).value == F)) {
+            if ((literal.sign > 0 && literal.variable->value != F) ||
+                (literal.sign < 0 && literal.variable->value == F)) {
                 clause_satisfied = true;
                 break;
             }

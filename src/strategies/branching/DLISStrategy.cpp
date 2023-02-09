@@ -1,25 +1,22 @@
 #include "DLISStrategy.h"
 
 // Implementing Dynamic Largest Individual Sum heuristic
-std::pair<Variable, LiteralValue> DLISStrategy::choose(const Formula &formula) const {
+std::pair<Variable *, LiteralValue> DLISStrategy::choose(const Formula &formula) const {
     size_t occurrences = 0;
     LiteralValue literal = U;
-    Variable target_variable = 0;
+    Variable *target_variable = nullptr;
 
-    for (const auto &variable_data_pair: formula.variables) {
-        const Variable &variable = variable_data_pair.first;
-        const LiteralValue &value = variable_data_pair.second.value;
-
-        if (value == U) {
+    for (const auto &variable: formula.variables) {
+        if (variable->value == U) {
             size_t current_positive_occurrences =
                     std::count_if(
-                            variable_data_pair.second.positive_occurrences.cbegin(),
-                            variable_data_pair.second.positive_occurrences.cend(),
+                            variable->positive_occurrences.cbegin(),
+                            variable->positive_occurrences.cend(),
                             [](const auto &clause) { return clause->active; });
 
             size_t current_negative_occurrences = std::count_if(
-                    variable_data_pair.second.negative_occurrences.cbegin(),
-                    variable_data_pair.second.negative_occurrences.cend(),
+                    variable->negative_occurrences.cbegin(),
+                    variable->negative_occurrences.cend(),
                     [](const auto &clause) { return clause->active; });
 
             if (std::max(current_positive_occurrences, current_negative_occurrences) > occurrences) {
@@ -34,6 +31,6 @@ std::pair<Variable, LiteralValue> DLISStrategy::choose(const Formula &formula) c
         }
     }
 
-    assert(target_variable != 0);
+    assert(target_variable != nullptr);
     return {target_variable, literal};
 }

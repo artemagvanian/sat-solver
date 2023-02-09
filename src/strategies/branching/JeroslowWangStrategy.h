@@ -4,6 +4,6 @@
 
 class JeroslowWangStrategy : public BranchingStrategy {
 public:
-    std::pair<Variable, LiteralValue> choose(const Formula &formula) const override;
+    std::pair<Variable *, LiteralValue> choose(const Formula &formula) const override;
 };
 

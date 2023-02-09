@@ -12,5 +12,5 @@ public:
         this->beta = beta;
     }
 
-    std::pair<Variable, LiteralValue> choose(const Formula &initial) const override;
+    std::pair<Variable *, LiteralValue> choose(const Formula &initial) const override;
 };

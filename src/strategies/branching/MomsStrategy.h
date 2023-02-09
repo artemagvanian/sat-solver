@@ -10,5 +10,5 @@ public:
         this->k = k;
     }
 
-    std::pair<Variable, LiteralValue> choose(const Formula &formula) const override;
+    std::pair<Variable *, LiteralValue> choose(const Formula &formula) const override;
 };
