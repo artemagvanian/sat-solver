@@ -6,10 +6,7 @@
 
 #include "Formula.h"
 #include "Verifier.h"
-#include "strategies/branching/DLCSStrategy.h"
-#include "strategies/branching/BohmsStrategy.h"
-#include "strategies/branching/DLISStrategy.h"
-#include "strategies/branching/MomsStrategy.h"
+#include "strategies/branching/JeroslowWangStrategy.h"
 
 #define VERIFY false
 
@@ -36,7 +33,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    const BranchingStrategy &strategy = MomsStrategy(3);
+    const BranchingStrategy &strategy = JeroslowWangStrategy();
 
     std::unordered_map<ID, std::unordered_set<Literal>> clauses;
 

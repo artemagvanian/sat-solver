@@ -10,6 +10,9 @@ add_executable(sat-solver
         src/strategies/branching/BranchingStrategy.h
         src/strategies/branching/DLCSStrategy.h src/strategies/branching/DLCSStrategy.cpp
         src/strategies/branching/BohmsStrategy.h src/strategies/branching/BohmsStrategy.cpp
-        src/Verifier.h src/Verifier.cpp src/strategies/branching/DLISStrategy.cpp src/strategies/branching/DLISStrategy.h src/strategies/branching/MomsStrategy.cpp src/strategies/branching/MomsStrategy.h)
+        src/strategies/branching/DLISStrategy.h src/strategies/branching/DLISStrategy.cpp
+        src/strategies/branching/MomsStrategy.h src/strategies/branching/MomsStrategy.cpp
+        src/strategies/branching/JeroslowWangStrategy.h src/strategies/branching/JeroslowWangStrategy.cpp
+        src/Verifier.h src/Verifier.cpp)
 
 target_include_directories(sat-solver PUBLIC src/)
