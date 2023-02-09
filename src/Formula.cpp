@@ -71,16 +71,19 @@ OperationResult Formula::propagate_unit_clause(Literal literal) {
         assignments[-literal] = F;
     }
 
-    std::unordered_map<ID, std::unordered_set<Literal>> removed_clauses;
-    std::unordered_set<ID> reduced_clauses;
+    std::vector<std::pair<ID, std::unordered_set<Literal>>> removed_clauses;
+    std::vector<ID> reduced_clauses;
 
     const auto &remove_occurrences =
             literal > 0 ? occurrences[std::abs(literal)].first : occurrences[std::abs(literal)].second;
     const auto &reduce_occurrences =
             literal > 0 ? occurrences[std::abs(literal)].second : occurrences[std::abs(literal)].first;
 
+    removed_clauses.reserve(remove_occurrences.size());
+    reduced_clauses.reserve(reduce_occurrences.size());
+
     for (const auto &remove_occurrence: remove_occurrences) {
-        removed_clauses.insert({remove_occurrence, std::move(clauses[remove_occurrence])});
+        removed_clauses.emplace_back(remove_occurrence, std::move(clauses[remove_occurrence]));
         clauses.erase(remove_occurrence);
     }
 
@@ -96,7 +99,7 @@ OperationResult Formula::propagate_unit_clause(Literal literal) {
 
     for (const auto &reduce_occurrence: reduce_occurrences) {
         clauses[reduce_occurrence].erase(-literal);
-        reduced_clauses.insert(reduce_occurrence);
+        reduced_clauses.push_back(reduce_occurrence);
     }
 
     occurrences[std::abs(literal)].first.clear();
@@ -127,16 +130,16 @@ OperationResult Formula::eliminate_pure_literal(Literal literal) {
         assignments[-literal] = F;
     }
 
-    std::unordered_map<ID, std::unordered_set<Literal>> removed_clauses;
+    std::vector<std::pair<ID, std::unordered_set<Literal>>> removed_clauses;
 
     if (literal > 0) {
         for (const auto &positive_occurrence: occurrences[std::abs(literal)].first) {
-            removed_clauses.insert({positive_occurrence, std::move(clauses[positive_occurrence])});
+            removed_clauses.emplace_back(positive_occurrence, std::move(clauses[positive_occurrence]));
             clauses.erase(positive_occurrence);
         }
     } else {
         for (const auto &negative_occurrence: occurrences[std::abs(literal)].second) {
-            removed_clauses.insert({negative_occurrence, std::move(clauses[negative_occurrence])});
+            removed_clauses.emplace_back(negative_occurrence, std::move(clauses[negative_occurrence]));
             clauses.erase(negative_occurrence);
         }
     }
@@ -239,7 +242,7 @@ SolutionResult Formula::solve(const BranchingStrategy &branching_strategy) {
     }
 }
 
-void Formula::restore_clauses(std::unordered_map<ID, std::unordered_set<Literal>> &removed_clauses) {
+void Formula::restore_clauses(std::vector<std::pair<ID, std::unordered_set<Literal>>> &removed_clauses) {
     for (const auto &removed_clause: removed_clauses) {
         for (const auto &literal: removed_clause.second) {
             assert(literal != 0);
@@ -255,7 +258,7 @@ void Formula::restore_clauses(std::unordered_map<ID, std::unordered_set<Literal>
                    std::make_move_iterator(removed_clauses.end()));
 }
 
-void Formula::restore_literal(const std::unordered_set<ID> &reduced_clauses, Literal literal) {
+void Formula::restore_literal(const std::vector<ID> &reduced_clauses, Literal literal) {
     for (const auto &reduced_clause: reduced_clauses) {
         clauses[reduced_clause].insert(literal);
         assert(literal != 0);

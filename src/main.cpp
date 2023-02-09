@@ -8,6 +8,8 @@
 #include "Verifier.h"
 #include "strategies/branching/DLCSStrategy.h"
 #include "strategies/branching/BohmsStrategy.h"
+#include "strategies/branching/DLISStrategy.h"
+#include "strategies/branching/MomsStrategy.h"
 
 #define VERIFY false
 
@@ -34,7 +36,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    const BranchingStrategy &strategy = DLCSStrategy();
+    const BranchingStrategy &strategy = MomsStrategy(3);
 
     std::unordered_map<ID, std::unordered_set<Literal>> clauses;
 
@@ -62,8 +64,8 @@ int main(int argc, char **argv) {
 
     if (sat.result) {
         std::cout << ", " << R"("Solution": ")";
-        std::vector<std::pair<int, LiteralValue>> assignments_vec(formula.assignments.begin(),
-                                                                  formula.assignments.end());
+        std::vector<std::pair<Variable, LiteralValue>> assignments_vec(formula.assignments.begin(),
+                                                                       formula.assignments.end());
         std::sort(assignments_vec.begin(), assignments_vec.end(),
                   [](const auto &a, const auto &b) {
                       return a.first < b.first;

@@ -15,8 +15,8 @@ typedef long ID;
 
 struct OperationResult {
     Literal set_literal;
-    std::unordered_map<ID, std::unordered_set<Literal>> removed_clauses;
-    std::unordered_set<ID> reduced_clauses;
+    std::vector<std::pair<ID, std::unordered_set<Literal>>> removed_clauses;
+    std::vector<ID> reduced_clauses;
 };
 
 struct SolutionResult {
@@ -59,9 +59,9 @@ public:
 
     void undo_solution(SolutionResult &sol);
 
-    void restore_clauses(std::unordered_map<ID, std::unordered_set<Literal>> &removed_clauses);
+    void restore_clauses(std::vector<std::pair<ID, std::unordered_set<Literal>>> &removed_clauses);
 
-    void restore_literal(const std::unordered_set<ID> &reduced_clauses, Literal literal);
+    void restore_literal(const std::vector<ID> &reduced_clauses, Literal literal);
 
     void restore_literal_value(const Literal &literal);
 
