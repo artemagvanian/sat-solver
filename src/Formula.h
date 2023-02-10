@@ -69,9 +69,9 @@ public:
     SignedVariable find_pure_literal();
 
     // We are assuming that the literal appears in some unit clause
-    void propagate(SignedVariable literal);
+    static void propagate(SignedVariable literal);
 
-    void depropagate(const std::vector<Variable *> &eliminated_variables);
+    static void depropagate(const std::vector<Variable *> &eliminated_variables);
 
     std::pair<bool, std::vector<Variable *>> solve(const BranchingStrategy &branching_strategy);
 };

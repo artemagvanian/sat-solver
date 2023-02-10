@@ -93,6 +93,7 @@ SignedVariable Formula::find_unit_clause() {
 
 // We are assuming that the literal appears in some unit clause
 void Formula::propagate(SignedVariable literal) {
+    assert(literal.sign != 0);
     assert(literal.variable != nullptr);
 
     if (literal.sign > 0) {

@@ -15,3 +15,5 @@ add_executable(sat-solver
         src/Verifier.h src/Verifier.cpp)
 
 target_include_directories(sat-solver PUBLIC src/)
+#target_compile_options(sat-solver PUBLIC -fsanitize=address)
+#target_link_options(sat-solver PUBLIC -fsanitize=address)

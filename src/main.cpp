@@ -2,11 +2,14 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
-#include <sstream>
 
 #include "Formula.h"
 #include "Verifier.h"
 #include "strategies/branching/JeroslowWangStrategy.h"
+#include "strategies/branching/BohmsStrategy.h"
+#include "strategies/branching/MomsStrategy.h"
+#include "strategies/branching/DLISStrategy.h"
+#include "strategies/branching/DLCSStrategy.h"
 
 #define VERIFY true
 
@@ -33,7 +36,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    const BranchingStrategy &strategy = JeroslowWangStrategy();
+    const BranchingStrategy &strategy = BohmsStrategy(1, 2);
 
     auto start = std::chrono::high_resolution_clock::now();
     auto sat = formula.solve(strategy);
@@ -46,7 +49,7 @@ int main(int argc, char **argv) {
     std::cout << std::boolalpha;
 
     if (VERIFY && sat.first) {
-        assert(Verifier::verify(formula.clauses, formula.variables));
+        assert(Verifier::verify(formula.clauses));
     }
 
     std::cout << R"({"Instance": ")" << path.substr(path.find_last_of("/\\") + 1) << "\", " <<
