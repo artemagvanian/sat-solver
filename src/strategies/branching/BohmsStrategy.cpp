@@ -60,10 +60,12 @@ std::pair<Variable *, LiteralValue> BohmsStrategy::choose(const Formula &initial
     for (const auto &clause: initial.clauses) {
         for (const auto &literal: clause->literals) {
             assert(literal.variable != nullptr);
-            if (literal.sign > 0) {
-                h_values[literal.variable->id][clause->literals.size()].first++;
-            } else if (literal.sign < 0) {
-                h_values[literal.variable->id][clause->literals.size()].second++;
+            if (literal.variable->value == U) {
+                if (literal.sign > 0) {
+                    h_values[literal.variable->id][clause->active_literals].first++;
+                } else if (literal.sign < 0) {
+                    h_values[literal.variable->id][clause->active_literals].second++;
+                }
             }
         }
     }
@@ -84,6 +86,9 @@ std::pair<Variable *, LiteralValue> BohmsStrategy::choose(const Formula &initial
                                  [&](const auto &variable) {
                                      return variable->id == max.first;
                                  });
+
+    assert(variable != initial.variables.end());
+    assert((*variable)->value == U);
 
     return {*variable, sum_positive > sum_negative ? T : F};
 }
