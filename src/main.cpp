@@ -1,7 +1,9 @@
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 
 #include "Formula.h"
 #include "Verifier.h"

@@ -1,8 +1,12 @@
 #pragma once
 
+#include <algorithm>
+#include <cassert>
+#include <cmath>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <string>
 
 // Forward-declaration
 class BranchingStrategy;
