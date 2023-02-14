@@ -73,7 +73,7 @@ public:
     SignedVariable find_pure_literal();
 
     // We are assuming that the literal appears in some unit clause
-    static void propagate(SignedVariable literal);
+    static std::vector<Variable *> propagate(SignedVariable literal);
 
     static void depropagate(const std::vector<Variable *> &eliminated_variables);
 

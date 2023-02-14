@@ -92,7 +92,9 @@ SignedVariable Formula::find_unit_clause() {
 }
 
 // We are assuming that the literal appears in some unit clause
-void Formula::propagate(SignedVariable literal) {
+std::vector<Variable *> Formula::propagate(SignedVariable literal) {
+    std::vector<Variable *> eliminated_variables = {literal.variable};
+
     assert(literal.sign != 0);
     assert(literal.variable != nullptr);
 
@@ -121,6 +123,21 @@ void Formula::propagate(SignedVariable literal) {
             decrement_clause->active_literals--;
         }
     }
+    for (const auto &decrement_clause: decrement_clauses) {
+        if (decrement_clause->active) {
+            if (decrement_clause->active_literals == 1) {
+                for (const auto &maybe_unit: decrement_clause->literals) {
+                    if (maybe_unit.variable->value == U) {
+                        std::vector<Variable *> propagated_variables = propagate(maybe_unit);
+                        eliminated_variables.insert(eliminated_variables.end(),
+                                                    std::make_move_iterator(propagated_variables.begin()),
+                                                    std::make_move_iterator(propagated_variables.end()));
+                    }
+                }
+            }
+        }
+    }
+    return eliminated_variables;
 }
 
 // Returns 0 if there are no pure literals in the formula
@@ -149,14 +166,18 @@ std::pair<bool, std::vector<Variable *>> Formula::solve(const BranchingStrategy 
 
     SignedVariable unit_clause{};
     while ((unit_clause = find_unit_clause()).variable != nullptr) {
-        propagate(unit_clause);
-        eliminated_variables.push_back(unit_clause.variable);
+        std::vector<Variable *> propagated_variables = propagate(unit_clause);
+        eliminated_variables.insert(eliminated_variables.end(),
+                                    std::make_move_iterator(propagated_variables.begin()),
+                                    std::make_move_iterator(propagated_variables.end()));
     }
 
     SignedVariable pure_literal{};
     while ((pure_literal = find_pure_literal()).variable != nullptr) {
-        propagate(pure_literal);
-        eliminated_variables.push_back(pure_literal.variable);
+        std::vector<Variable *> propagated_variables = propagate(pure_literal);
+        eliminated_variables.insert(eliminated_variables.end(),
+                                    std::make_move_iterator(propagated_variables.begin()),
+                                    std::make_move_iterator(propagated_variables.end()));
     }
 
     if (std::all_of(clauses.cbegin(),
@@ -174,34 +195,36 @@ std::pair<bool, std::vector<Variable *>> Formula::solve(const BranchingStrategy 
 
     SignedVariable literal{0, assignment.first};
     literal.sign = assignment.second == T ? 1 : -1;
-    propagate(literal);
+    std::vector<Variable *> propagated_positive = propagate(literal);
 
-    std::pair<bool, std::vector<Variable *>> branch_left = solve(branching_strategy);
+    std::pair<bool, std::vector<Variable *>> branch_positive = solve(branching_strategy);
 
-    if (branch_left.first) {
-        eliminated_variables.push_back(literal.variable);
+    if (branch_positive.first) {
         eliminated_variables.insert(eliminated_variables.end(),
-                                    std::make_move_iterator(branch_left.second.begin()),
-                                    std::make_move_iterator(branch_left.second.end()));
+                                    std::make_move_iterator(propagated_positive.begin()),
+                                    std::make_move_iterator(propagated_positive.end()));
+        eliminated_variables.insert(eliminated_variables.end(),
+                                    std::make_move_iterator(branch_positive.second.begin()),
+                                    std::make_move_iterator(branch_positive.second.end()));
         return {true, eliminated_variables};
     } else {
-        depropagate(branch_left.second);
-        depropagate({literal.variable});
+        depropagate(branch_positive.second);
+        depropagate(propagated_positive);
 
         literal.sign *= -1;
-        propagate(literal);
+        std::vector<Variable *> propagated_negative = propagate(literal);
 
-        std::pair<bool, std::vector<Variable *>> branch_right = solve(branching_strategy);
+        std::pair<bool, std::vector<Variable *>> branch_negative = solve(branching_strategy);
 
-        if (branch_right.first) {
+        if (branch_negative.first) {
             eliminated_variables.push_back(literal.variable);
             eliminated_variables.insert(eliminated_variables.end(),
-                                        std::make_move_iterator(branch_right.second.begin()),
-                                        std::make_move_iterator(branch_right.second.end()));
+                                        std::make_move_iterator(branch_negative.second.begin()),
+                                        std::make_move_iterator(branch_negative.second.end()));
             return {true, eliminated_variables};
         } else {
-            depropagate(branch_right.second);
-            depropagate({literal.variable});
+            depropagate(branch_negative.second);
+            depropagate(propagated_negative);
 
             return {false, eliminated_variables};
         }

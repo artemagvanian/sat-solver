@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    const BranchingStrategy &strategy = BohmsStrategy(1, 2);
+    const BranchingStrategy &strategy = JeroslowWangStrategy();
 
     auto start = std::chrono::high_resolution_clock::now();
     auto sat = formula.solve(strategy);
