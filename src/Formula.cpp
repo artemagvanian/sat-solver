@@ -18,12 +18,10 @@ std::vector<std::string> split(const std::string &str, char delim) {
 }
 
 void Formula::set_variables_count(size_t n) {
-    variables_count = n;
     variables.reserve(n);
 }
 
 void Formula::set_clauses_count(size_t n) {
-    clauses_count = n;
     clauses.reserve(n);
 }
 
@@ -161,16 +159,8 @@ SignedVariable Formula::find_pure_literal() {
     return {0, nullptr};
 }
 
-std::pair<bool, std::vector<Variable *>> Formula::solve(const BranchingStrategy &branching_strategy) {
+std::pair<bool, std::vector<Variable *>> Formula::solve_inner(const BranchingStrategy &branching_strategy) {
     std::vector<Variable *> eliminated_variables;
-
-    SignedVariable unit_clause{};
-    while ((unit_clause = find_unit_clause()).variable != nullptr) {
-        std::vector<Variable *> propagated_variables = propagate(unit_clause);
-        eliminated_variables.insert(eliminated_variables.end(),
-                                    std::make_move_iterator(propagated_variables.begin()),
-                                    std::make_move_iterator(propagated_variables.end()));
-    }
 
     SignedVariable pure_literal{};
     while ((pure_literal = find_pure_literal()).variable != nullptr) {
@@ -197,7 +187,7 @@ std::pair<bool, std::vector<Variable *>> Formula::solve(const BranchingStrategy 
     literal.sign = assignment.second == T ? 1 : -1;
     std::vector<Variable *> propagated_positive = propagate(literal);
 
-    std::pair<bool, std::vector<Variable *>> branch_positive = solve(branching_strategy);
+    std::pair<bool, std::vector<Variable *>> branch_positive = solve_inner(branching_strategy);
 
     if (branch_positive.first) {
         eliminated_variables.insert(eliminated_variables.end(),
@@ -214,7 +204,7 @@ std::pair<bool, std::vector<Variable *>> Formula::solve(const BranchingStrategy 
         literal.sign *= -1;
         std::vector<Variable *> propagated_negative = propagate(literal);
 
-        std::pair<bool, std::vector<Variable *>> branch_negative = solve(branching_strategy);
+        std::pair<bool, std::vector<Variable *>> branch_negative = solve_inner(branching_strategy);
 
         if (branch_negative.first) {
             eliminated_variables.push_back(literal.variable);
@@ -264,4 +254,12 @@ Formula::~Formula() {
     for (auto &clause: clauses) {
         delete clause;
     }
+}
+
+bool Formula::solve(const BranchingStrategy &branching_strategy) {
+    SignedVariable unit_clause{};
+    while ((unit_clause = find_unit_clause()).variable != nullptr) {
+        propagate(unit_clause);
+    }
+    return solve_inner(branching_strategy).first;
 }

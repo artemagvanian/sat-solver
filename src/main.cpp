@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     const BranchingStrategy &strategy = JeroslowWangStrategy();
 
     auto start = std::chrono::high_resolution_clock::now();
-    auto sat = formula.solve(strategy);
+    bool sat = formula.solve(strategy);
     auto stop = std::chrono::high_resolution_clock::now();
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
@@ -50,15 +50,15 @@ int main(int argc, char **argv) {
 
     std::cout << std::boolalpha;
 
-    if (VERIFY && sat.first) {
+    if (VERIFY && sat) {
         assert(Verifier::verify(formula.clauses));
     }
 
     std::cout << R"({"Instance": ")" << path.substr(path.find_last_of("/\\") + 1) << "\", " <<
               R"("Time": ")" << std::fixed << std::setprecision(2) << (float) duration.count() / 1000 << "\", " <<
-              R"("Result": ")" << (sat.first ? "SAT" : "UNSAT") << "\"";
+              R"("Result": ")" << (sat ? "SAT" : "UNSAT") << "\"";
 
-    if (sat.first) {
+    if (sat) {
         std::cout << ", " << R"("Solution": ")";
         std::sort(formula.variables.begin(), formula.variables.end(),
                   [](const auto &a, const auto &b) {

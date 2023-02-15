@@ -53,9 +53,6 @@ public:
     std::vector<Clause *> clauses;
     std::vector<Variable *> variables;
 
-    size_t variables_count = 0;
-    size_t clauses_count = 0;
-
     Formula() = default;
 
     ~Formula();
@@ -77,5 +74,7 @@ public:
 
     static void depropagate(const std::vector<Variable *> &eliminated_variables);
 
-    std::pair<bool, std::vector<Variable *>> solve(const BranchingStrategy &branching_strategy);
+    bool solve(const BranchingStrategy &branching_strategy);
+
+    std::pair<bool, std::vector<Variable *>> solve_inner(const BranchingStrategy &branching_strategy);
 };
