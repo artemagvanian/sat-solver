@@ -12,6 +12,7 @@
 #include "strategies/branching/MomsStrategy.h"
 #include "strategies/branching/DLISStrategy.h"
 #include "strategies/branching/DLCSStrategy.h"
+#include "strategies/branching/VSIDSStrategy.h"
 
 #define VERIFY true
 
@@ -38,7 +39,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    const BranchingStrategy &strategy = JeroslowWangStrategy();
+    const BranchingStrategy &strategy = VSIDSStrategy();
 
     auto start = std::chrono::high_resolution_clock::now();
     bool sat = formula.solve(strategy);

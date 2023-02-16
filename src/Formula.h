@@ -8,6 +8,10 @@
 #include <unordered_set>
 #include <string>
 
+#include <deps/ngraph.hpp>
+
+using namespace NGraph;
+
 // Forward-declaration
 class BranchingStrategy;
 
@@ -44,6 +48,8 @@ struct Variable {
     LiteralValue value;
     std::vector<Clause *> negative_occurrences;
     std::vector<Clause *> positive_occurrences;
+
+    long vsids_score;
 };
 
 std::vector<std::string> split(const std::string &str, char delim);
@@ -52,6 +58,7 @@ class Formula {
 public:
     std::vector<Clause *> clauses;
     std::vector<Variable *> variables;
+    tGraph<long> implication_graph;
 
     Formula() = default;
 
@@ -63,6 +70,8 @@ public:
 
     void add_clause(const std::string &clause_str);
 
+    void add_clause(const std::vector<long> &clause_vec, bool learned);
+
     // Returns 0 if there are no unit clauses in the formula
     SignedVariable find_unit_clause();
 
@@ -70,11 +79,11 @@ public:
     SignedVariable find_pure_literal();
 
     // We are assuming that the literal appears in some unit clause
-    static std::vector<Variable *> propagate(SignedVariable literal);
+    std::vector<SignedVariable> propagate(SignedVariable literal, Clause *implicated_by);
 
-    static void depropagate(const std::vector<Variable *> &eliminated_variables);
+    void depropagate(const std::vector<SignedVariable> &eliminated_literals);
 
     bool solve(const BranchingStrategy &branching_strategy);
 
-    std::pair<bool, std::vector<Variable *>> solve_inner(const BranchingStrategy &branching_strategy);
+    std::pair<bool, std::vector<SignedVariable>> solve_inner(const BranchingStrategy &branching_strategy);
 };

@@ -25,53 +25,64 @@ void Formula::set_clauses_count(size_t n) {
     clauses.reserve(n);
 }
 
-void Formula::add_clause(const std::string &clause_str) {
-    std::vector<std::string> clause_vec = split(clause_str, ' ');
-
+void Formula::add_clause(const std::vector<long> &clause_vec, bool learned) {
     auto *clause = new Clause{true, nullptr, 0, {}};
+    for (const long &new_literal: clause_vec) {
+        assert(new_literal != 0);
+        if (std::find_if(clause->literals.cbegin(), clause->literals.cend(),
+                         [&](const auto &literal) {
+                             return literal.variable->id == std::abs(new_literal);
+                         }) == clause->literals.end()) {
 
-    for (const std::string &str_literal: clause_vec) {
-        if (str_literal == "0") {
-            assert(clause->literals.size() == clause->active_literals);
-            clauses.push_back(clause);
-            break;
-        } else {
-            long new_literal = stol(str_literal);
-            assert(new_literal != 0);
+            auto it = std::find_if(variables.begin(), variables.end(),
+                                   [&](const auto &variable) {
+                                       return variable->id == std::abs(new_literal);
+                                   });
 
-            if (std::find_if(clause->literals.cbegin(), clause->literals.cend(),
-                             [&](const auto &literal) {
-                                 return literal.variable->id == std::abs(new_literal);
-                             }) == clause->literals.end()) {
-
-                auto it = std::find_if(variables.begin(), variables.end(),
-                                       [&](const auto &variable) {
-                                           return variable->id == std::abs(new_literal);
-                                       });
-
-                if (it == variables.end()) {
-                    auto *variable = new Variable{std::abs(new_literal), U, {}, {}};
-                    if (new_literal > 0) {
-                        variable->positive_occurrences.push_back(clause);
-                        clause->literals.push_back({1, variable});
-                    } else {
-                        variable->negative_occurrences.push_back(clause);
-                        clause->literals.push_back({-1, variable});
-                    }
-                    variables.push_back(variable);
+            if (it == variables.end()) {
+                assert(!learned);
+                auto *variable = new Variable{std::abs(new_literal), U, {}, {}, 0};
+                if (new_literal > 0) {
+                    variable->positive_occurrences.push_back(clause);
+                    clause->literals.push_back({1, variable});
                 } else {
-                    if (new_literal > 0) {
-                        (*it)->positive_occurrences.push_back(clause);
-                        clause->literals.push_back({1, (*it)});
-                    } else {
-                        (*it)->negative_occurrences.push_back(clause);
-                        clause->literals.push_back({-1, (*it)});
-                    }
+                    variable->negative_occurrences.push_back(clause);
+                    clause->literals.push_back({-1, variable});
                 }
+                variables.push_back(variable);
                 clause->active_literals++;
+            } else {
+                if (learned) {
+                    (*it)->vsids_score++;
+                }
+                if (new_literal > 0) {
+                    (*it)->positive_occurrences.push_back(clause);
+                    clause->literals.push_back({1, (*it)});
+                } else {
+                    (*it)->negative_occurrences.push_back(clause);
+                    clause->literals.push_back({-1, (*it)});
+                }
+                if ((*it)->value == U) {
+                    clause->active_literals++;
+                }
             }
         }
     }
+    clauses.push_back(clause);
+}
+
+void Formula::add_clause(const std::string &clause_str) {
+    std::vector<std::string> clause_str_vec = split(clause_str, ' ');
+    std::vector<long> clause_vec;
+    for (const auto &str_literal: clause_str_vec) {
+        if (str_literal != "0") {
+            clause_vec.push_back(std::stol(str_literal));
+        } else {
+            add_clause(clause_vec, false);
+            break;
+        }
+    }
+
 }
 
 // Returns 0 if there are no unit clauses in the formula
@@ -90,11 +101,21 @@ SignedVariable Formula::find_unit_clause() {
 }
 
 // We are assuming that the literal appears in some unit clause
-std::vector<Variable *> Formula::propagate(SignedVariable literal) {
-    std::vector<Variable *> eliminated_variables = {literal.variable};
+std::vector<SignedVariable> Formula::propagate(SignedVariable literal, Clause *implicated_by) {
+    std::vector<SignedVariable> eliminated_variables = {literal};
 
     assert(literal.sign != 0);
     assert(literal.variable != nullptr);
+//    std::cout << "ADD " << literal.sign * literal.variable->id << std::endl;
+    implication_graph.insert_vertex(literal.sign * literal.variable->id);
+    if (implicated_by != nullptr) {
+        for (const auto &implicated_by_literal: implicated_by->literals) {
+            if (implicated_by_literal.variable->id != literal.variable->id) {
+                implication_graph.insert_edge(-implicated_by_literal.sign * implicated_by_literal.variable->id,
+                                              literal.sign * literal.variable->id);
+            }
+        }
+    }
 
     if (literal.sign > 0) {
         literal.variable->value = T;
@@ -110,29 +131,67 @@ std::vector<Variable *> Formula::propagate(SignedVariable literal) {
             literal.sign > 0 ? literal.variable->negative_occurrences :
             literal.variable->positive_occurrences;
 
-    for (const auto &deactivate_clause: deactivate_clauses) {
-        if (deactivate_clause->active) {
-            deactivate_clause->active = false;
-            deactivate_clause->deactivated_by = literal.variable;
+    for (size_t i = 0;
+         i < deactivate_clauses.size(); i++) {
+        if (deactivate_clauses[i]->active) {
+            deactivate_clauses[i]->active = false;
+            deactivate_clauses[i]->deactivated_by = literal.variable;
         }
     }
-    for (const auto &decrement_clause: decrement_clauses) {
-        if (decrement_clause->active) {
-            decrement_clause->active_literals--;
+
+    for (size_t i = 0;
+         i < decrement_clauses.size(); i++) {
+        if (decrement_clauses[i]->active) {
+            decrement_clauses[i]->active_literals--;
         }
     }
-    for (const auto &decrement_clause: decrement_clauses) {
-        if (decrement_clause->active) {
-            if (decrement_clause->active_literals == 1) {
-                for (const auto &maybe_unit: decrement_clause->literals) {
-                    if (maybe_unit.variable->value == U) {
-                        std::vector<Variable *> propagated_variables = propagate(maybe_unit);
-                        eliminated_variables.insert(eliminated_variables.end(),
-                                                    std::make_move_iterator(propagated_variables.begin()),
-                                                    std::make_move_iterator(propagated_variables.end()));
-                    }
+
+    bool found_conflicts = false;
+    for (size_t i = 0;
+         i < decrement_clauses.size(); i++) {
+        if (decrement_clauses[i]->active && decrement_clauses[i]->active_literals == 0) {
+            implication_graph.insert_vertex(-literal.sign * literal.variable->id);
+            for (const auto &implicated_by_literal: decrement_clauses[i]->literals) {
+                implication_graph.insert_edge_noloop(
+                        -implicated_by_literal.sign * implicated_by_literal.variable->id,
+                        -literal.sign * literal.variable->id);
+            }
+            // Conflict analysis
+//            std::cout << "CONFLICT +-" << literal.variable->id << std::endl;
+            // Conflict found! Add clause to the formula.
+            std::vector<long> cut;
+            for (const long &conflicting_literal: implication_graph.in_neighbors(literal.variable->id)) {
+                cut.push_back(-conflicting_literal);
+            }
+            for (const long &conflicting_literal: implication_graph.in_neighbors(-literal.variable->id)) {
+                cut.push_back(-conflicting_literal);
+            }
+
+            add_clause(cut, true);
+            implication_graph.remove_vertex(-literal.sign * literal.variable->id);
+            found_conflicts = true;
+            break;
+        }
+    }
+    if (found_conflicts) {
+        return eliminated_variables;
+    }
+
+    for (size_t i = 0;
+         i < decrement_clauses.size(); i++) {
+        if (decrement_clauses[i]->active && decrement_clauses[i]->active_literals == 1) {
+            bool propagated = false;
+            for (const auto &maybe_unit: decrement_clauses[i]->literals) {
+                if (maybe_unit.variable->value == U) {
+                    std::vector<SignedVariable> propagated_variables = propagate(maybe_unit, decrement_clauses[i]);
+                    eliminated_variables.insert(eliminated_variables.end(),
+                                                std::make_move_iterator(propagated_variables.begin()),
+                                                std::make_move_iterator(propagated_variables.end()));
+                    propagated = true;
+                    break;
                 }
             }
+            assert(propagated);
         }
     }
     return eliminated_variables;
@@ -159,16 +218,8 @@ SignedVariable Formula::find_pure_literal() {
     return {0, nullptr};
 }
 
-std::pair<bool, std::vector<Variable *>> Formula::solve_inner(const BranchingStrategy &branching_strategy) {
-    std::vector<Variable *> eliminated_variables;
-
-    SignedVariable pure_literal{};
-    while ((pure_literal = find_pure_literal()).variable != nullptr) {
-        std::vector<Variable *> propagated_variables = propagate(pure_literal);
-        eliminated_variables.insert(eliminated_variables.end(),
-                                    std::make_move_iterator(propagated_variables.begin()),
-                                    std::make_move_iterator(propagated_variables.end()));
-    }
+std::pair<bool, std::vector<SignedVariable>> Formula::solve_inner(const BranchingStrategy &branching_strategy) {
+    std::vector<SignedVariable> eliminated_variables;
 
     if (std::all_of(clauses.cbegin(),
                     clauses.cend(),
@@ -185,9 +236,9 @@ std::pair<bool, std::vector<Variable *>> Formula::solve_inner(const BranchingStr
 
     SignedVariable literal{0, assignment.first};
     literal.sign = assignment.second == T ? 1 : -1;
-    std::vector<Variable *> propagated_positive = propagate(literal);
 
-    std::pair<bool, std::vector<Variable *>> branch_positive = solve_inner(branching_strategy);
+    std::vector<SignedVariable> propagated_positive = propagate(literal, nullptr);
+    std::pair<bool, std::vector<SignedVariable>> branch_positive = solve_inner(branching_strategy);
 
     if (branch_positive.first) {
         eliminated_variables.insert(eliminated_variables.end(),
@@ -202,12 +253,13 @@ std::pair<bool, std::vector<Variable *>> Formula::solve_inner(const BranchingStr
         depropagate(propagated_positive);
 
         literal.sign *= -1;
-        std::vector<Variable *> propagated_negative = propagate(literal);
-
-        std::pair<bool, std::vector<Variable *>> branch_negative = solve_inner(branching_strategy);
+        std::vector<SignedVariable> propagated_negative = propagate(literal, nullptr);
+        std::pair<bool, std::vector<SignedVariable>> branch_negative = solve_inner(branching_strategy);
 
         if (branch_negative.first) {
-            eliminated_variables.push_back(literal.variable);
+            eliminated_variables.insert(eliminated_variables.end(),
+                                        std::make_move_iterator(propagated_negative.begin()),
+                                        std::make_move_iterator(propagated_negative.end()));
             eliminated_variables.insert(eliminated_variables.end(),
                                         std::make_move_iterator(branch_negative.second.begin()),
                                         std::make_move_iterator(branch_negative.second.end()));
@@ -221,18 +273,18 @@ std::pair<bool, std::vector<Variable *>> Formula::solve_inner(const BranchingStr
     }
 }
 
-void Formula::depropagate(const std::vector<Variable *> &eliminated_variables) {
-    for (auto it = eliminated_variables.crbegin(); it != eliminated_variables.crend(); it++) {
+void Formula::depropagate(const std::vector<SignedVariable> &eliminated_literals) {
+    for (auto it = eliminated_literals.crbegin(); it != eliminated_literals.crend(); it++) {
         const auto &activate_clauses =
-                (*it)->value == T ? (*it)->positive_occurrences :
-                (*it)->negative_occurrences;
+                (*it).variable->value == T ? (*it).variable->positive_occurrences :
+                (*it).variable->negative_occurrences;
 
         const auto &increment_clauses =
-                (*it)->value == T ? (*it)->negative_occurrences :
-                (*it)->positive_occurrences;
+                (*it).variable->value == T ? (*it).variable->negative_occurrences :
+                (*it).variable->positive_occurrences;
 
         for (const auto &activate_clause: activate_clauses) {
-            if (activate_clause->deactivated_by == *it) {
+            if (activate_clause->deactivated_by == (*it).variable) {
                 activate_clause->active = true;
                 activate_clause->deactivated_by = nullptr;
             }
@@ -242,8 +294,10 @@ void Formula::depropagate(const std::vector<Variable *> &eliminated_variables) {
                 increment_clause->active_literals++;
             }
         }
-
-        (*it)->value = U;
+        assert(implication_graph.includes_vertex((*it).sign * (*it).variable->id));
+//        std::cout << "REMOVE " << (*it).sign * (*it).variable->id << std::endl;
+        implication_graph.remove_vertex((*it).sign * (*it).variable->id);
+        (*it).variable->value = U;
     }
 }
 
@@ -259,7 +313,8 @@ Formula::~Formula() {
 bool Formula::solve(const BranchingStrategy &branching_strategy) {
     SignedVariable unit_clause{};
     while ((unit_clause = find_unit_clause()).variable != nullptr) {
-        propagate(unit_clause);
+        propagate(unit_clause, nullptr);
     }
-    return solve_inner(branching_strategy).first;
+    auto result = solve_inner(branching_strategy);
+    return result.first;
 }
