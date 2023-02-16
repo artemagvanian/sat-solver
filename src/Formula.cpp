@@ -7,6 +7,8 @@
 #include "Formula.h"
 #include "strategies/branching/BranchingStrategy.h"
 
+#define DEBUG false
+
 std::vector<std::string> split(const std::string &str, char delim) {
     std::vector<std::string> items;
     std::stringstream str_stream(str);
@@ -100,13 +102,28 @@ SignedVariable Formula::find_unit_clause() {
     return {0, nullptr};
 }
 
-// We are assuming that the literal appears in some unit clause
-std::vector<SignedVariable> Formula::propagate(SignedVariable literal, Clause *implicated_by) {
-    std::vector<SignedVariable> eliminated_variables = {literal};
+void Formula::register_conflict(SignedVariable literal, Clause *implicated_by) {
+    implication_graph.insert_vertex(literal.sign * literal.variable->id);
+    for (const auto &implicated_by_literal: implicated_by->literals) {
+        implication_graph.insert_edge_noloop(
+                -implicated_by_literal.sign * implicated_by_literal.variable->id,
+                literal.sign * literal.variable->id);
+    }
+    if (DEBUG) std::cout << "CONFLICT +-" << literal.variable->id << std::endl;
+    std::vector<long> cut;
+    for (const long &conflicting_literal: implication_graph.in_neighbors(literal.variable->id)) {
+        cut.push_back(-conflicting_literal);
+    }
+    for (const long &conflicting_literal: implication_graph.in_neighbors(-literal.variable->id)) {
+        cut.push_back(-conflicting_literal);
+    }
 
-    assert(literal.sign != 0);
-    assert(literal.variable != nullptr);
-//    std::cout << "ADD " << literal.sign * literal.variable->id << std::endl;
+    add_clause(cut, true);
+    implication_graph.remove_vertex(literal.sign * literal.variable->id);
+}
+
+void Formula::add_to_implication_graph(SignedVariable literal, Clause *implicated_by) {
+    if (DEBUG) std::cout << "ADD " << literal.sign * literal.variable->id << std::endl;
     implication_graph.insert_vertex(literal.sign * literal.variable->id);
     if (implicated_by != nullptr) {
         for (const auto &implicated_by_literal: implicated_by->literals) {
@@ -116,6 +133,22 @@ std::vector<SignedVariable> Formula::propagate(SignedVariable literal, Clause *i
             }
         }
     }
+}
+
+void Formula::remove_from_implication_graph(SignedVariable literal) {
+    assert(implication_graph.includes_vertex(literal.sign * literal.variable->id));
+    if (DEBUG) std::cout << "REMOVE " << literal.sign * literal.variable->id << std::endl;
+    implication_graph.remove_vertex(literal.sign * literal.variable->id);
+}
+
+// We are assuming that the literal appears in some unit clause
+std::vector<SignedVariable> Formula::propagate(SignedVariable literal, Clause *implicated_by) {
+    std::vector<SignedVariable> eliminated_variables = {literal};
+
+    assert(literal.sign != 0);
+    assert(literal.variable != nullptr);
+
+    add_to_implication_graph(literal, implicated_by);
 
     if (literal.sign > 0) {
         literal.variable->value = T;
@@ -131,44 +164,24 @@ std::vector<SignedVariable> Formula::propagate(SignedVariable literal, Clause *i
             literal.sign > 0 ? literal.variable->negative_occurrences :
             literal.variable->positive_occurrences;
 
-    for (size_t i = 0;
-         i < deactivate_clauses.size(); i++) {
+    for (size_t i = 0; i < deactivate_clauses.size(); i++) {
         if (deactivate_clauses[i]->active) {
             deactivate_clauses[i]->active = false;
             deactivate_clauses[i]->deactivated_by = literal.variable;
         }
     }
 
-    for (size_t i = 0;
-         i < decrement_clauses.size(); i++) {
+    for (size_t i = 0; i < decrement_clauses.size(); i++) {
         if (decrement_clauses[i]->active) {
             decrement_clauses[i]->active_literals--;
         }
     }
 
     bool found_conflicts = false;
-    for (size_t i = 0;
-         i < decrement_clauses.size(); i++) {
+    for (size_t i = 0; i < decrement_clauses.size(); i++) {
         if (decrement_clauses[i]->active && decrement_clauses[i]->active_literals == 0) {
-            implication_graph.insert_vertex(-literal.sign * literal.variable->id);
-            for (const auto &implicated_by_literal: decrement_clauses[i]->literals) {
-                implication_graph.insert_edge_noloop(
-                        -implicated_by_literal.sign * implicated_by_literal.variable->id,
-                        -literal.sign * literal.variable->id);
-            }
-            // Conflict analysis
-//            std::cout << "CONFLICT +-" << literal.variable->id << std::endl;
-            // Conflict found! Add clause to the formula.
-            std::vector<long> cut;
-            for (const long &conflicting_literal: implication_graph.in_neighbors(literal.variable->id)) {
-                cut.push_back(-conflicting_literal);
-            }
-            for (const long &conflicting_literal: implication_graph.in_neighbors(-literal.variable->id)) {
-                cut.push_back(-conflicting_literal);
-            }
-
-            add_clause(cut, true);
-            implication_graph.remove_vertex(-literal.sign * literal.variable->id);
+            register_conflict({-literal.sign, literal.variable},
+                              decrement_clauses[i]);
             found_conflicts = true;
             break;
         }
@@ -197,79 +210,47 @@ std::vector<SignedVariable> Formula::propagate(SignedVariable literal, Clause *i
     return eliminated_variables;
 }
 
-// Returns 0 if there are no pure literals in the formula
-SignedVariable Formula::find_pure_literal() {
-    for (const auto &variable: variables) {
-        if (variable->value == U) {
-            bool no_positives = std::all_of(variable->positive_occurrences.cbegin(),
-                                            variable->positive_occurrences.cend(),
-                                            [](const auto &clause) { return !(clause->active); });
+struct Choice {
+    bool tried_other_branch;
+    SignedVariable literal;
+    std::vector<SignedVariable> propagates;
+};
 
-            bool no_negatives = std::all_of(variable->negative_occurrences.cbegin(),
-                                            variable->negative_occurrences.cend(),
-                                            [](const auto &clause) { return !(clause->active); });
-            if (!no_positives && no_negatives) {
-                return {1, variable};
-            } else if (!no_negatives && no_positives) {
-                return {-1, variable};
+bool Formula::solve_inner(const BranchingStrategy &branching_strategy) {
+    std::vector<Choice> choices;
+    while (true) {
+        if (std::all_of(clauses.cbegin(),
+                        clauses.cend(),
+                        [](const auto &clause) { return !clause->active; })) {
+            return true;
+        } else if (std::find_if(clauses.cbegin(), clauses.cend(),
+                                [](const auto &clause) {
+                                    return clause->active_literals == 0;
+                                }) != clauses.end()) {
+            while (!choices.empty() && choices.back().tried_other_branch) {
+                Choice last_choice = choices.back();
+                choices.pop_back();
+                depropagate(last_choice.propagates);
+            }
+            if (choices.empty()) {
+                return false;
+            } else {
+                Choice last_choice = choices.back();
+                choices.pop_back();
+                depropagate(last_choice.propagates);
+
+                SignedVariable literal = {-last_choice.literal.sign, last_choice.literal.variable};
+                std::vector<SignedVariable> propagates = propagate(literal, nullptr);
+                choices.push_back({true, literal, propagates});
+                continue;
             }
         }
-    }
-    return {0, nullptr};
-}
 
-std::pair<bool, std::vector<SignedVariable>> Formula::solve_inner(const BranchingStrategy &branching_strategy) {
-    std::vector<SignedVariable> eliminated_variables;
+        const std::pair<Variable *, LiteralValue> assignment = branching_strategy.choose(*this);
 
-    if (std::all_of(clauses.cbegin(),
-                    clauses.cend(),
-                    [](const auto &clause) { return !clause->active; })) {
-        return {true, eliminated_variables};
-    } else if (std::find_if(clauses.cbegin(), clauses.cend(),
-                            [](const auto &clause) {
-                                return clause->active_literals == 0;
-                            }) != clauses.end()) {
-        return {false, eliminated_variables};
-    }
-
-    const std::pair<Variable *, LiteralValue> assignment = branching_strategy.choose(*this);
-
-    SignedVariable literal{0, assignment.first};
-    literal.sign = assignment.second == T ? 1 : -1;
-
-    std::vector<SignedVariable> propagated_positive = propagate(literal, nullptr);
-    std::pair<bool, std::vector<SignedVariable>> branch_positive = solve_inner(branching_strategy);
-
-    if (branch_positive.first) {
-        eliminated_variables.insert(eliminated_variables.end(),
-                                    std::make_move_iterator(propagated_positive.begin()),
-                                    std::make_move_iterator(propagated_positive.end()));
-        eliminated_variables.insert(eliminated_variables.end(),
-                                    std::make_move_iterator(branch_positive.second.begin()),
-                                    std::make_move_iterator(branch_positive.second.end()));
-        return {true, eliminated_variables};
-    } else {
-        depropagate(branch_positive.second);
-        depropagate(propagated_positive);
-
-        literal.sign *= -1;
-        std::vector<SignedVariable> propagated_negative = propagate(literal, nullptr);
-        std::pair<bool, std::vector<SignedVariable>> branch_negative = solve_inner(branching_strategy);
-
-        if (branch_negative.first) {
-            eliminated_variables.insert(eliminated_variables.end(),
-                                        std::make_move_iterator(propagated_negative.begin()),
-                                        std::make_move_iterator(propagated_negative.end()));
-            eliminated_variables.insert(eliminated_variables.end(),
-                                        std::make_move_iterator(branch_negative.second.begin()),
-                                        std::make_move_iterator(branch_negative.second.end()));
-            return {true, eliminated_variables};
-        } else {
-            depropagate(branch_negative.second);
-            depropagate(propagated_negative);
-
-            return {false, eliminated_variables};
-        }
+        SignedVariable literal{assignment.second == T ? 1 : -1, assignment.first};
+        std::vector<SignedVariable> propagates = propagate(literal, nullptr);
+        choices.push_back({false, literal, propagates});
     }
 }
 
@@ -294,9 +275,7 @@ void Formula::depropagate(const std::vector<SignedVariable> &eliminated_literals
                 increment_clause->active_literals++;
             }
         }
-        assert(implication_graph.includes_vertex((*it).sign * (*it).variable->id));
-//        std::cout << "REMOVE " << (*it).sign * (*it).variable->id << std::endl;
-        implication_graph.remove_vertex((*it).sign * (*it).variable->id);
+        remove_from_implication_graph((*it));
         (*it).variable->value = U;
     }
 }
@@ -316,5 +295,5 @@ bool Formula::solve(const BranchingStrategy &branching_strategy) {
         propagate(unit_clause, nullptr);
     }
     auto result = solve_inner(branching_strategy);
-    return result.first;
+    return result;
 }

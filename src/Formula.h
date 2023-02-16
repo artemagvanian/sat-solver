@@ -20,7 +20,7 @@ enum ComparisonResult {
 };
 
 typedef long ID;
-typedef short Sign;
+typedef int Sign;
 
 enum LiteralValue {
     U, T, F
@@ -75,9 +75,6 @@ public:
     // Returns 0 if there are no unit clauses in the formula
     SignedVariable find_unit_clause();
 
-    // Returns 0 if there are no pure literals in the formula
-    SignedVariable find_pure_literal();
-
     // We are assuming that the literal appears in some unit clause
     std::vector<SignedVariable> propagate(SignedVariable literal, Clause *implicated_by);
 
@@ -85,5 +82,11 @@ public:
 
     bool solve(const BranchingStrategy &branching_strategy);
 
-    std::pair<bool, std::vector<SignedVariable>> solve_inner(const BranchingStrategy &branching_strategy);
+    bool solve_inner(const BranchingStrategy &branching_strategy);
+
+    void register_conflict(SignedVariable literal, Clause *implicated_by);
+
+    void add_to_implication_graph(SignedVariable literal, Clause *implicated_by);
+
+    void remove_from_implication_graph(SignedVariable literal);
 };
