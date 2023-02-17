@@ -8,10 +8,6 @@
 #include <unordered_set>
 #include <string>
 
-#include <deps/ngraph.hpp>
-
-using namespace NGraph;
-
 // Forward-declaration
 class BranchingStrategy;
 
@@ -52,13 +48,23 @@ struct Variable {
     long vsids_score;
 };
 
+struct Choice {
+    bool retry;
+    SignedVariable literal;
+    Clause *implicated_by;
+};
+
 std::vector<std::string> split(const std::string &str, char delim);
 
 class Formula {
 public:
     std::vector<Clause *> clauses;
     std::vector<Variable *> variables;
-    tGraph<long> implication_graph;
+    std::vector<Choice> choices;
+
+    long new_conflicts = 0;
+    long active_clauses = 0;
+    long conflict_ceiling = 1;
 
     Formula() = default;
 
@@ -70,23 +76,21 @@ public:
 
     void add_clause(const std::string &clause_str);
 
-    void add_clause(const std::vector<long> &clause_vec, bool learned);
+    void add_clause(const std::vector<long> &clause_vec);
+
+    void add_learned_clause(const std::vector<SignedVariable> &clause_vec);
+
+    bool backtrack();
 
     // Returns 0 if there are no unit clauses in the formula
-    SignedVariable find_unit_clause();
+    std::pair<SignedVariable, Clause *> find_unit_clause();
 
     // We are assuming that the literal appears in some unit clause
-    std::vector<SignedVariable> propagate(SignedVariable literal, Clause *implicated_by);
+    bool propagate(SignedVariable literal, Clause *implicated_by, bool retry);
 
-    void depropagate(const std::vector<SignedVariable> &eliminated_literals);
+    void depropagate(const SignedVariable &eliminated_literal);
 
     bool solve(const BranchingStrategy &branching_strategy);
 
-    bool solve_inner(const BranchingStrategy &branching_strategy);
-
     void register_conflict(SignedVariable literal, Clause *implicated_by);
-
-    void add_to_implication_graph(SignedVariable literal, Clause *implicated_by);
-
-    void remove_from_implication_graph(SignedVariable literal);
 };

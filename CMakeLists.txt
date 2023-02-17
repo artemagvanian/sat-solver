@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD 14)
 add_executable(sat-solver
         src/main.cpp
         src/Formula.h src/Formula.cpp
-        src/deps/ngraph.hpp
         src/strategies/branching/BranchingStrategy.h
         src/strategies/branching/DLCSStrategy.h src/strategies/branching/DLCSStrategy.cpp
         src/strategies/branching/BohmsStrategy.h src/strategies/branching/BohmsStrategy.cpp
@@ -17,5 +16,5 @@ add_executable(sat-solver
         src/Verifier.h src/Verifier.cpp )
 
 target_include_directories(sat-solver PUBLIC src/)
-#target_compile_options(sat-solver PUBLIC -fsanitize=address)
-#target_link_options(sat-solver PUBLIC -fsanitize=address)
+target_compile_options(sat-solver PUBLIC -fsanitize=address)
+target_link_options(sat-solver PUBLIC -fsanitize=address)
