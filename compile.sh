@@ -5,5 +5,5 @@
 ########################################
 
 # Update this file with instructions on how to compile your code
-cmake .
+cmake -DCMAKE_BUILD_TYPE=Release .
 make

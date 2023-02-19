@@ -3,25 +3,21 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <vector>
+#include <list>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 #include <string>
 
 // Forward-declaration
 class BranchingStrategy;
 
-enum ComparisonResult {
-    Equal, Greater, Less
-};
-
 typedef long ID;
-typedef int Sign;
+typedef long Sign;
 
 enum LiteralValue {
     U, T, F
 };
-
 
 struct Clause;
 struct Variable;
@@ -29,68 +25,120 @@ struct Variable;
 struct SignedVariable {
     Sign sign;
     Variable *variable;
+
+    SignedVariable() {
+        this->sign = 0;
+        this->variable = nullptr;
+    }
+
+    SignedVariable(Sign sign, Variable *variable) {
+        this->sign = sign;
+        this->variable = variable;
+    }
+
+    bool operator==(const SignedVariable &literal) const {
+        return sign == literal.sign && variable == literal.variable;
+    }
+};
+
+struct hash_sv {
+    std::size_t operator()(const SignedVariable &literal) const {
+        std::size_t h1 = std::hash<Sign>()(literal.sign);
+        std::size_t h2 = std::hash<Variable *>()(literal.variable);
+
+        return h1 ^ h2;
+    }
 };
 
 struct Clause {
-    bool active;
-    Variable *deactivated_by;
-
-    long active_literals;
-    std::vector<SignedVariable> literals;
+    std::list<SignedVariable> literals;
+    std::pair<SignedVariable, SignedVariable> watched;
 };
 
 struct Variable {
     ID id;
     LiteralValue value;
-    std::vector<Clause *> negative_occurrences;
-    std::vector<Clause *> positive_occurrences;
 
-    long vsids_score;
+    Clause *implicated_by;
+
+    std::list<Clause *> positive_occurrences;
+    std::list<Clause *> negative_occurrences;
+
+    double positive_conflicts;
+    double negative_conflicts;
 };
 
 struct Choice {
-    bool retry;
+    Choice() {
+        this->retry = false;
+        this->literal = SignedVariable();
+    }
+
+    Choice(bool retry, SignedVariable literal) {
+        this->retry = retry;
+        this->literal = literal;
+    }
+
+
+    bool retry{};
     SignedVariable literal;
-    Clause *implicated_by;
 };
 
-std::vector<std::string> split(const std::string &str, char delim);
+std::vector<std::string> split(const std::string &, char);
 
 class Formula {
 public:
-    std::vector<Clause *> clauses;
-    std::vector<Variable *> variables;
-    std::vector<Choice> choices;
+    std::list<Clause *> clauses;
+    std::list<Variable *> variables;
+    std::list<Choice> choices;
 
     long new_conflicts = 0;
-    long active_clauses = 0;
-    long conflict_ceiling = 1;
+
+    long current_ceiling = 1;
+    long absolute_ceiling = 2;
+
+    long new_iterations = 0;
 
     Formula() = default;
 
     ~Formula();
 
-    void set_variables_count(size_t n);
+    void set_variables_count(size_t);
 
-    void set_clauses_count(size_t n);
+    void set_clauses_count(size_t);
 
-    void add_clause(const std::string &clause_str);
+    void add_clause(const std::string &);
 
-    void add_clause(const std::vector<long> &clause_vec);
+    void add_clause(const std::vector<long> &);
 
-    void add_learned_clause(const std::vector<SignedVariable> &clause_vec);
+    void add_learned_clause(const std::unordered_set<SignedVariable, hash_sv> &);
 
     bool backtrack();
 
-    // Returns 0 if there are no unit clauses in the formula
-    std::pair<SignedVariable, Clause *> find_unit_clause();
+    bool propagate(SignedVariable, Clause *, bool);
 
-    // We are assuming that the literal appears in some unit clause
-    bool propagate(SignedVariable literal, Clause *implicated_by, bool retry);
+    void depropagate(const SignedVariable &);
 
-    void depropagate(const SignedVariable &eliminated_literal);
+    bool solve(const BranchingStrategy &);
 
-    bool solve(const BranchingStrategy &branching_strategy);
+    std::unordered_set<SignedVariable, hash_sv>
+    register_conflict(Variable *, Clause *, Clause *);
 
-    void register_conflict(SignedVariable literal, Clause *implicated_by);
+    SignedVariable find_new_watched(Clause *);
+
+    Choice find_conflicting_choice(Clause *);
+
+    bool non_chronological_backtrack(const std::unordered_set<SignedVariable, hash_sv> &);
+
+    void print() const;
+
+    void random_restart();
+
+    void decay(double decay_factor);
+
+    bool check_clauses(const std::list<Clause *> &);
+
+    bool handle_conflict(Clause *);
+
+    bool check_all_satisfied();
 };

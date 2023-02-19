@@ -1,6 +1,6 @@
 #include "Verifier.h"
 
-bool Verifier::verify(const std::vector<Clause *> &clauses) {
+bool Verifier::verify(const std::list<Clause *> &clauses) {
     for (const auto &clause: clauses) {
         bool clause_satisfied = false;
         for (const auto &literal: clause->literals) {

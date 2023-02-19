@@ -4,5 +4,5 @@
 
 class Verifier {
 public:
-    static bool verify(const std::vector<Clause *> &clauses);
+    static bool verify(const std::list<Clause *> &clauses);
 };

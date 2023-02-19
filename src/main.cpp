@@ -7,12 +7,8 @@
 
 #include "Formula.h"
 #include "Verifier.h"
-#include "strategies/branching/JeroslowWangStrategy.h"
-#include "strategies/branching/BohmsStrategy.h"
-#include "strategies/branching/MomsStrategy.h"
-#include "strategies/branching/DLISStrategy.h"
-#include "strategies/branching/DLCSStrategy.h"
 #include "strategies/branching/VSIDSStrategy.h"
+#include "strategies/branching/JeroslowWangStrategy.h"
 
 #define VERIFY true
 
@@ -61,10 +57,9 @@ int main(int argc, char **argv) {
 
     if (sat) {
         std::cout << ", " << R"("Solution": ")";
-        std::sort(formula.variables.begin(), formula.variables.end(),
-                  [](const auto &a, const auto &b) {
-                      return a->id < b->id;
-                  });
+        formula.variables.sort([](const auto &a, const auto &b) {
+            return a->id < b->id;
+        });
 
         std::string solution;
         for (auto &variable: formula.variables) {
